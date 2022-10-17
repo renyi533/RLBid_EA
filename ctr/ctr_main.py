@@ -57,12 +57,12 @@ def get_dataset(args):
     data_path = args.data_path + args.dataset_name + args.campaign_id
 
     # click + winning price + hour + time_fraction + timestamp
-    train_data = pd.read_csv(os.path.join(data_path, 'train.bid.txt'), header=None).values.astype(int)
+    train_data = pd.read_csv(os.path.join(data_path, 'train.bid.txt'), header=None).values
     field_nums = train_data.shape[1] - 5  # 17
 
-    val_data = pd.read_csv(os.path.join(data_path, 'test.bid.txt'), header=None).values.astype(int)
+    val_data = pd.read_csv(os.path.join(data_path, 'test.bid.txt'), header=None).values
 
-    test_data = pd.read_csv(os.path.join(data_path, 'test.bid.txt'), header=None).values.astype(int)
+    test_data = pd.read_csv(os.path.join(data_path, 'test.bid.txt'), header=None).values
 
     with open(os.path.join(data_path, 'feat.bid.txt')) as feat_f:
         feature_nums = int(list(islice(feat_f, 0, 1))[0].replace('\n', ''))
