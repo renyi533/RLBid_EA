@@ -121,7 +121,7 @@ def bid_main(bid_prices, imp_datas, budget):
                         cost += tmp_mprice
                         budget -= tmp_mprice
                     else:
-                        break
+                        continue
                 real_clks += np.sum(remain_win_imps[:last_win_index, 0])
                 real_pctr += np.sum(remain_win_imps[:last_win_index, 1])
             else:
