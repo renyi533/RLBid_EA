@@ -351,7 +351,7 @@ if __name__ == '__main__':
                     # 如果不是，就用tmp_test_state占位，即next_state
                     state = torch.tensor(init_test_state).float() if not t else torch.tensor(tmp_test_state).float()
 
-                    action = rl_model.choose_action(state.unsqueeze(0))[0, 0].item()
+                    action = rl_model.choose_best_action(state.unsqueeze(0))[0, 0].item()
                     current_day_test_action[t] = action
                     bid_datas = generate_bid_price((hour_datas[:, ctr_index] * hb_base / avg_ctr) / (1 + action))
                     res_ = bid_main(bid_datas, hour_datas, budget)

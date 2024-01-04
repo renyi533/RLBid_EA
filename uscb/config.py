@@ -16,6 +16,7 @@ def init_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', default='../data/')
     parser.add_argument('--test_with_train', type=int, default=0)
+    parser.add_argument('--cont_tune', type=int, default=0)
     parser.add_argument('--reward_type', type=int, default=0)
     parser.add_argument('--dataset_name', default='ipinyou/', help='ipinyou, cretio, yoyi, avazu')
     parser.add_argument('--campaign_id', default='1458', help='1458, 3427')
@@ -33,7 +34,7 @@ def init_parser():
     parser.add_argument('--result_path', type=str, default='../uscb/result/')
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--time_fraction', type=int, default=96)
-    parser.add_argument('--input_dims', type=int, default=4)
+    parser.add_argument('--input_dims', type=int, default=5)
 
     parser.add_argument('--budget', type=float, default=16e6)
     parser.add_argument('--budget_para', type=int, default=2, help='2,4,8,16')  # 预算调整比例

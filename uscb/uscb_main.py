@@ -290,11 +290,13 @@ if __name__ == '__main__':
                 
             #tmp_state = [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1]
             #init_state = [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1]
-            tmp_state = [1, 0, 0, 0]
-            init_state = [1, 0, 0, 0]
+            tmp_state = [1, 0, 0, 0, 1]
+            init_state = [1, 0, 0, 0, 1]
 
             done = 0
             curr_win_clks = 0
+            curr_ratio = 1.0
+            prev_ratio = 1.0
             for t in range(time_fraction):
                 if budget > 0:
                     hour_datas = train_data[train_data[:, hour_index] == t]
@@ -302,8 +304,11 @@ if __name__ == '__main__':
                     state = torch.tensor(init_state).float() if not t else torch.tensor(tmp_state).float()
 
                     action = rl_model.choose_action(state.unsqueeze(0))[0, 0].item()
-
-                    bid_datas = generate_bid_price((hour_datas[:, ctr_index] * (hb_base / avg_ctr)) / (1 + action))
+                    if args.cont_tune:
+                        curr_ratio = prev_ratio * (1 + action)
+                    else:
+                        curr_ratio = 1 + action
+                    bid_datas = generate_bid_price((hour_datas[:, ctr_index] * (hb_base / avg_ctr)) / curr_ratio)
                     res_ = bid_main(bid_datas, hour_datas, budget)
                     # win_clks, real_clks, win_pctr, real_pctr, bids, imps, cost
 
@@ -335,8 +340,9 @@ if __name__ == '__main__':
                             budget / current_day_budget),
                                   res_[6] / current_day_budget,
                                   res_[0] / res_[5] if res_[5] else 0,
-                                  res_[5] / res_[4] if res_[4] else 0]                    
-           
+                                  res_[5] / res_[4] if res_[4] else 0,
+                                  prev_ratio]                    
+                    prev_ratio = curr_ratio
                     budget -= res_[-1]
                     tmp_state = next_state
                     budget_mc = budget
@@ -346,7 +352,7 @@ if __name__ == '__main__':
                         if budget_mc <= 0:
                             break
                         hour_datas_mc = train_data[train_data[:, hour_index] == t2]
-                        bid_datas_mc = generate_bid_price((hour_datas_mc[:, ctr_index] * (hb_base / avg_ctr)) / (1 + action))
+                        bid_datas_mc = generate_bid_price((hour_datas_mc[:, ctr_index] * (hb_base / avg_ctr)) / curr_ratio)
                         res_mc = bid_main(bid_datas_mc, hour_datas_mc, budget_mc)
                         nxt_win_clks += res_mc[0]
                         budget_mc = budget_mc - res_mc[-1]
@@ -388,19 +394,21 @@ if __name__ == '__main__':
         test_actions = []
         
         for day_index, day in enumerate(test_data_df.day.unique()):
-            current_day_test_action = [0 for _ in range(time_fraction)]
+            current_day_test_action = [(0,0) for _ in range(time_fraction)]
             test_data = test_data_df[test_data_df.day.isin([day])]
             test_data = test_data[['clk', 'pctr', 'market_price', time_fraction_str]].values.astype(float)
             #tmp_test_state = [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1]
             #init_test_state = [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1]
-            tmp_test_state = [1, 0, 0, 0]
-            init_test_state = [1, 0, 0, 0]
+            tmp_test_state = [1, 0, 0, 0, 1]
+            init_test_state = [1, 0, 0, 0, 1]
 
             budget = np.sum(test_data_df[test_data_df.day.isin([day])].market_price) / args.budget_para
             current_day_budget = budget
             day_budget += [current_day_budget]
             hour_t = 0
             curr_rewards = [0, 0, 0]
+            curr_ratio = 1.0
+            prev_ratio = 1.0
             for t in range(time_fraction):
                 if budget > 0:
                     # 筛选该小时时段的数据
@@ -409,9 +417,13 @@ if __name__ == '__main__':
                     # 如果不是，就用tmp_test_state占位，即next_state
                     state = torch.tensor(init_test_state).float() if not t else torch.tensor(tmp_test_state).float()
 
-                    action = rl_model.choose_action(state.unsqueeze(0))[0, 0].item()
-                    current_day_test_action[t] = action
-                    bid_datas = generate_bid_price((hour_datas[:, ctr_index] * hb_base / avg_ctr) / (1 + action))
+                    action = rl_model.choose_best_action(state.unsqueeze(0))[0, 0].item()
+                    if args.cont_tune:
+                        curr_ratio = prev_ratio * (1 + action)
+                    else:
+                        curr_ratio = 1 + action
+                    current_day_test_action[t] = (action, curr_ratio)
+                    bid_datas = generate_bid_price((hour_datas[:, ctr_index] * hb_base / avg_ctr) / curr_ratio)
                     res_ = bid_main(bid_datas, hour_datas, budget)
 
                     # win_clks, real_clks, bids, imps, cost
@@ -445,7 +457,9 @@ if __name__ == '__main__':
                             budget / current_day_budget),
                                   res_[6] / current_day_budget,
                                   res_[0] / res_[5] if res_[5] else 0,
-                                  res_[5] / res_[4] if res_[4] else 0]
+                                  res_[5] / res_[4] if res_[4] else 0,
+                                  prev_ratio]
+                    prev_ratio = curr_ratio
                     tmp_test_state = next_state
 
                     hour_t += 1
@@ -464,16 +478,16 @@ if __name__ == '__main__':
                                             'loss', 'rewards', 'constr_cost'])
     train_record_df.to_csv(
         os.path.join(result_path, 'uscb_train_records_' + str(args.tCPC * (1 + args.margin)) + '_' + str(
-            args.budget_para) + '_' + str(args.lamda) + '_' + str(args.beta)  + '_' + str(args.reward_type) + '.csv'), index=None)
+            args.budget_para) + '_' + str(args.lamda) + '_' + str(args.beta)  + '_' + str(args.reward_type) + '_' + str(args.cont_tune) + '.csv'), index=None)
 
     test_record_df = pd.DataFrame(data=ep_test_records,
                                   columns=['ep', 'clks', 'real_clks', 'pctrs', 'real_pctrs', 'bids', 'imps', 'cost',
                                            'clks_2', 'pctrs_2', 'cost_2'])
     test_record_df.to_csv(
         os.path.join(result_path, 'uscb_test_records_' + str(args.tCPC * (1 + args.margin)) + '_' + str(
-            args.budget_para) + '_' + str(args.lamda) + '_' + str(args.beta) + '_' + str(args.reward_type) + '.csv'), index=None)
+            args.budget_para) + '_' + str(args.lamda) + '_' + str(args.beta) + '_' + str(args.reward_type) + '_' + str(args.cont_tune) + '.csv'), index=None)
 
     test_action_df = pd.DataFrame(data=ep_test_actions)
     test_action_df.to_csv(
         os.path.join(result_path, 'uscb_test_actions_' + str(args.tCPC * (1 + args.margin)) + '_' + str(
-            args.budget_para) + '_' + str(args.lamda) + '_' + str(args.beta) + '_' + str(args.reward_type) + '.csv'), index=None)
+            args.budget_para) + '_' + str(args.lamda) + '_' + str(args.beta) + '_' + str(args.reward_type) + '_' + str(args.cont_tune) + '.csv'), index=None)
